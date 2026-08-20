@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+const Patient = require('./models/Patient');
+const Doctor = require('./models/Doctor');
+const Appointment = require('./models/Appointment');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -15,11 +19,9 @@ const requestLogger = (req, res, next) => {
     console.log(`[${req.method}] ${req.url} [${timestamp}]`);
     next();
 };
-
-// Apply the middleware globally
 app.use(requestLogger);
 
-// MongoDB connection (Fixed the options error from before)
+// MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI;
 mongoose.connect(MONGODB_URI).then(() => {
     console.log('Connected to MongoDB');
@@ -27,16 +29,14 @@ mongoose.connect(MONGODB_URI).then(() => {
     console.error('Error connecting to MongoDB:', error.message);
 });
 
-// In-memory arrays for Task 3
+// In-memory arrays for Task 3 (kept for compatibility)
 const doctors = [
-    { id: 1, name: "Dr. Smith", specialisation: "Cardiology" },
-    { id: 2, name: "Dr. Adams", specialisation: "Neurology" }
+    { id: 1, name: "Dr. Smith", specialisation: "Cardiology", available: true },
+    { id: 2, name: "Dr. Adams", specialisation: "Neurology", available: true }
 ];
 const appointments = [];
 
-// REST API Endpoints for Task 3
-
-// Return all doctors
+// --- Task 3 Endpoints ---
 app.get('/api/v1/doctors', (req, res, next) => {
     try {
         res.status(200).json(doctors);
@@ -45,7 +45,6 @@ app.get('/api/v1/doctors', (req, res, next) => {
     }
 });
 
-// Return all appointments
 app.get('/api/v1/appointments', (req, res, next) => {
     try {
         res.status(200).json(appointments);
@@ -54,14 +53,12 @@ app.get('/api/v1/appointments', (req, res, next) => {
     }
 });
 
-// Create a new appointment
 app.post('/api/v1/appointments', (req, res, next) => {
     try {
-        // Minimal mock creation using in-memory array
         const newAppointment = {
             id: appointments.length + 1,
             ...req.body,
-            status: 'pending' // Default status
+            status: 'pending'
         };
         appointments.push(newAppointment);
         res.status(201).json({ message: 'Appointment created successfully', data: newAppointment });
@@ -70,14 +67,49 @@ app.post('/api/v1/appointments', (req, res, next) => {
     }
 });
 
-// Basic route
+// --- Task 5: MongoDB Endpoints to demonstrate schema and validation ---
+
+// Create Patient (Demonstrates Mongoose Save & Validation)
+app.post('/api/v1/patients', async (req, res, next) => {
+    try {
+        const patient = new Patient(req.body);
+        const savedPatient = await patient.save();
+        res.status(201).json({
+            success: true,
+            data: savedPatient
+        });
+    } catch (error) {
+        next(error); // Passes to global error handler
+    }
+});
+
 app.get('/', (req, res) => {
     res.send('Backend Server is Running!');
 });
 
-// Global Error-Handling Middleware (Must be the last middleware)
+// Global Error-Handling Middleware (Task 3 + Task 5)
 app.use((err, req, res, next) => {
-    console.error(`[ERROR] ${err.message}`);
+    console.error(`[ERROR] ${err.name || 'Error'}: ${err.message}`);
+    
+    // Handle Mongoose Validation Error (Task 5 Requirement)
+    if (err.name === 'ValidationError') {
+        const messages = Object.values(err.errors).map(val => val.message);
+        return res.status(400).json({
+            success: false,
+            error: "Validation Error",
+            messages: messages
+        });
+    }
+    
+    // Handle Mongoose Duplicate Key Error (e.g., unique email)
+    if (err.code === 11000) {
+        return res.status(400).json({
+            success: false,
+            error: "Duplicate Error",
+            message: "A record with that value already exists"
+        });
+    }
+
     res.status(500).json({
         success: false,
         error: "Internal Server Error",

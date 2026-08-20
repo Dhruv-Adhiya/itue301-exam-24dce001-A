@@ -3,17 +3,16 @@ const mongoose = require('mongoose');
 const doctorSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true,
+        required: [true, 'Doctor name is required'],
         trim: true
     },
     email: {
         type: String,
-        required: true,
-        unique: true,
         trim: true
     },
     specialisation: {
         type: String,
+        required: [true, 'Specialisation is required'],
         trim: true
     },
     available: {

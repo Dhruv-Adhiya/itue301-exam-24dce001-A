@@ -4,28 +4,32 @@ const appointmentSchema = new mongoose.Schema({
     patientId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Patient',
-        required: true
+        required: [true, 'Patient ID is required']
     },
     doctorId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Doctor',
-        required: true
+        required: [true, 'Doctor ID is required']
     },
     date: {
         type: Date,
-        required: true
+        required: [true, 'Appointment date is required']
     },
     timeSlot: {
         type: String,
-        required: true
+        required: [true, 'Time slot is required']
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'cancelled'],
+        enum: {
+            values: ['pending', 'confirmed', 'cancelled'],
+            message: '{VALUE} is not a valid status'
+        },
         default: 'pending'
     },
     reason: {
         type: String,
+        maxLength: [300, 'Reason cannot exceed 300 characters'],
         trim: true
     }
 }, { timestamps: true });
