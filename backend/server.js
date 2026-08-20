@@ -29,39 +29,94 @@ mongoose.connect(MONGODB_URI).then(() => {
     console.error('Error connecting to MongoDB:', error.message);
 });
 
-// In-memory arrays for Task 3 (kept for compatibility)
-const doctors = [
-    { id: 1, name: "Dr. Smith", specialisation: "Cardiology", available: true },
-    { id: 2, name: "Dr. Adams", specialisation: "Neurology", available: true }
-];
-const appointments = [];
+// --- REST Endpoints connected directly to MongoDB ---
 
-// --- Task 3 Endpoints ---
-app.get('/api/v1/doctors', (req, res, next) => {
+// Get all doctors
+app.get('/api/v1/doctors', async (req, res, next) => {
     try {
+        const doctors = await Doctor.find();
         res.status(200).json(doctors);
     } catch (error) {
         next(error);
     }
 });
 
-app.get('/api/v1/appointments', (req, res, next) => {
+// Add a new doctor
+app.post('/api/v1/doctors', async (req, res, next) => {
     try {
-        res.status(200).json(appointments);
+        const { name, specialisation, email, available } = req.body;
+        const doctor = new Doctor({ 
+            name, 
+            specialisation, 
+            email: email || `${name.replace(/\s+/g, '').toLowerCase()}${Date.now()}@doctor.com`,
+            available: available !== undefined ? available : true 
+        });
+        await doctor.save();
+        res.status(201).json({ success: true, data: doctor });
     } catch (error) {
         next(error);
     }
 });
 
-app.post('/api/v1/appointments', (req, res, next) => {
+app.get('/api/v1/appointments', async (req, res, next) => {
     try {
-        const newAppointment = {
-            id: appointments.length + 1,
-            ...req.body,
+        const appointments = await Appointment.find().populate('patientId doctorId');
+        
+        // Format for the React frontend
+        const formatted = appointments.map(app => ({
+            id: app._id,
+            patientName: app.patientId ? app.patientId.name : 'Unknown Patient',
+            doctorName: app.doctorId ? app.doctorId.name : 'Unknown Doctor',
+            date: app.date.toISOString().split('T')[0],
+            timeSlot: app.timeSlot,
+            status: app.status
+        }));
+        
+        res.status(200).json(formatted);
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.post('/api/v1/appointments', async (req, res, next) => {
+    try {
+        const { patientName, doctorId, date, timeSlot } = req.body;
+
+        // Auto-create a patient if they don't exist (simulating login/registration)
+        let patient = await Patient.findOne({ name: patientName });
+        if (!patient) {
+            patient = new Patient({
+                name: patientName,
+                // Email is required in the schema, so we generate a mock one
+                email: `${patientName.replace(/\s+/g, '').toLowerCase()}_${Date.now()}@example.com`
+            });
+            await patient.save();
+        }
+
+        // Create the appointment in MongoDB
+        const appointment = new Appointment({
+            patientId: patient._id,
+            doctorId: doctorId,
+            date: date,
+            timeSlot: timeSlot,
             status: 'pending'
-        };
-        appointments.push(newAppointment);
-        res.status(201).json({ message: 'Appointment created successfully', data: newAppointment });
+        });
+        await appointment.save();
+
+        // Fetch it back with populated relations to send to frontend
+        const populated = await Appointment.findById(appointment._id).populate('patientId doctorId');
+        
+        res.status(201).json({ 
+            message: 'Appointment created successfully', 
+            data: {
+                id: populated._id,
+                patientName: populated.patientId.name,
+                doctorName: populated.doctorId.name,
+                date: populated.date.toISOString().split('T')[0],
+                timeSlot: populated.timeSlot,
+                status: populated.status
+            } 
+        });
     } catch (error) {
         next(error);
     }
