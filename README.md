@@ -34,7 +34,7 @@ The backend is an Express REST API.
    ```
 3. Start the server:
    ```bash
-   npm start
+   node server.js
    ```
 *(Alternatively, you can run `node server.js` to start the backend).*
 
